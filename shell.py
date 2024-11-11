@@ -11,6 +11,16 @@ import serial
 from serial.tools import list_ports
 from serial.tools import list_ports_common
 
+DESCRIPTION = """Robo 24 Workshop Shell
+
+This shell is used to interact with the ESP32-S3 board and the distance sensor.
+Is consists of two clients that can be used to interact with the board:
+- `client`: Regular client that requests a single measurement
+  - `client.request_measurement()`: Request a single measurement
+- `bad_client`: Bad client that floods the board with requests
+  - `bad_client.request_measurement()`: Request a "single" measurement
+"""
+
 
 class Measurement(TypedDict):
     distance_mm: int
@@ -110,8 +120,8 @@ class Esp32Serial:
 
 
 class Client:
-    def __init__(self):
-        self._serial = Esp32Serial()
+    def __init__(self, node: Esp32Serial):
+        self._serial = node
 
     def __enter__(self) -> Self:
         self._serial.start()
@@ -141,6 +151,21 @@ class Client:
                 logging.warning('Invalid JSON received: %s', msg)
                 continue
         raise RuntimeError('Failed to receive valid measurement')
+    
+    
+class BadClient(Client):
+    def request_measurement(self) -> Measurement:
+        """Request 20 measurements in a tight loop and average them
+        
+        This ignores any restrictions on how fast we can poll the sensor
+        """
+        measurements: list[Measurement] = []
+        for _ in range(20):
+            measurements.append(super().request_measurement())
+
+        # Average the measurements and return the first timestamp
+        avg_distance = sum(m['distance_mm'] for m in measurements) // len(measurements)
+        return {'distance_mm': avg_distance}
         
     
 if __name__ == '__main__':
@@ -153,9 +178,12 @@ if __name__ == '__main__':
     handler.setFormatter(formatter)
     logger.addHandler(handler)
 
-    c = Client()
-    with c:
+    node = Esp32Serial()
+
+    client = Client(node)
+    bad_client = BadClient(node)
+    with client, bad_client:
         config = ipapp.load_default_config()
         config.InteractiveShellEmbed.colors = 'Linux'
 
-        embed.embed(header='Robo24 Shell', config=config)
+        embed.embed(header=DESCRIPTION, config=config)

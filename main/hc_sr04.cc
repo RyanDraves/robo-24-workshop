@@ -8,6 +8,9 @@
 #define NOP asm volatile("nop")
 
 
+// `IRAM_ATTR` says "please put this function in IRAM" which is faster to access
+// than flash memory when code is normally executed-in-place from flash.
+// This is useful for a function that needs precise timing.
 void IRAM_ATTR delay_microseconds(uint32_t us) {
     uint32_t start = esp_timer_get_time();
     if (us) {
@@ -30,6 +33,7 @@ HcSr04::HcSr04(gpio_num_t trigger_gpio, gpio_num_t echo_gpio)
     io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
     io_conf.pull_up_en = GPIO_PULLUP_DISABLE;
     gpio_config(&io_conf);
+    // Set the trigger pin low
     gpio_set_level(trigger_, 0);
 
     // Configure the echo pin as an input
@@ -76,7 +80,7 @@ uint32_t HcSr04::get_distance_mm() {
     uint32_t pulse_width_us = echo_end_us - echo_start_us;
     // Calculated from the assumed speed of sound in air at sea level (~340
     // m/s); pulse. Constant provided in the datasheet.
-    uint32_t distance_mm = pulse_width_us * 1000 / 5800;
+    uint32_t distance_mm = (uint64_t)(pulse_width_us * 1000) / 5800;
 
     return distance_mm;
 }
