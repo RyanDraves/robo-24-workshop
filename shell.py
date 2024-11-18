@@ -7,18 +7,23 @@ import time
 
 from IPython.terminal import embed
 from IPython.terminal import ipapp
+import pandas as pd
+import plotly.express as px
+from plotly import io as pio
 import serial
 from serial.tools import list_ports
 from serial.tools import list_ports_common
 
 DESCRIPTION = """Robo 24 Workshop Shell
 
-This shell is used to interact with the ESP32-S3 board and the distance sensor.
+This shell is used to interact with the ESP32 board and the distance sensor.
 Is consists of two clients that can be used to interact with the board:
 - `client`: Regular client that requests a single measurement
   - `client.request_measurement()`: Request a single measurement
+  - `client.plot(window_s: int | None = 30)`: Plot all measurements received within the `window_s` seconds of the latest measurement
 - `bad_client`: Bad client that floods the board with requests
-  - `bad_client.request_measurement()`: Request a "single" measurement
+  - `bad_client.request_measurement(rate_hz: int | None = None)`: Request 20 measurements in a tight loop (or at `rate_hz`, if provided) and average them
+  - `bad_client.plot(window_s: int | None = 30)`: Plot all measurements received within the `window_s` seconds of the latest measurement
 """
 
 
@@ -30,11 +35,12 @@ class MesaurementRequest(TypedDict):
     pretty_please: int
 
 class IPythonHandler(logging.Handler):
+    """Logging handler that prints directly to the IPython console"""
     def emit(self, record):
         print(self.format(record).strip())
 
 class Esp32Serial:
-    ESP32S3_VENDOR_PRODUCT_ID = '303a:1001'
+    ESP32_VENDOR_PRODUCT_ID = '303a:1001'
 
     BAUD_RATE = 460800
 
@@ -55,17 +61,17 @@ class Esp32Serial:
         return self._port
 
     def _find_esp32s3(self) -> str:
-        devices: list[list_ports_common.ListPortInfo] = cast(
+        devices = cast(
             list[list_ports_common.ListPortInfo],
-            list(list_ports.grep(self.ESP32S3_VENDOR_PRODUCT_ID)),
+            list(list_ports.grep(self.ESP32_VENDOR_PRODUCT_ID)),
         )
         if not devices:
-            raise RuntimeError('ESP32-S3 not found')
+            raise RuntimeError('ESP32 not found')
         elif len(devices) > 1:
             device = devices[0]
         device = devices[0]
 
-        logging.debug(f'ESP32-S3 found at {device.device}')
+        logging.debug(f'ESP32 found at {device.device}')
         return device.device
 
     def start(self) -> None:
@@ -95,6 +101,7 @@ class Esp32Serial:
         while self._started:
             try:
                 msg = self._receive()
+                # Split log messages from responses if they are combined
                 idx = msg.find(b'{')
                 log_msg = msg[:idx]
                 resp = msg[idx:] if idx != -1 else None
@@ -121,6 +128,7 @@ class Esp32Serial:
 class Client:
     def __init__(self, node: Esp32Serial):
         self._serial = node
+        self._measurements: list[Measurement] = []
 
     def __enter__(self) -> Self:
         self._serial.start()
@@ -148,23 +156,46 @@ class Client:
             msg = self._receive().strip()
             try:
                 measurement = json.loads(msg)
+                self._measurements.append(measurement)
                 return cast(Measurement, measurement)
             except json.JSONDecodeError:
                 logging.warning('Invalid JSON received: %s', msg)
                 continue
         raise RuntimeError('Failed to receive valid measurement')
     
+    def plot(self, window_s: int | None = 60) -> None:
+        """Plot all measurements received"""
+        if not self._measurements:
+            logging.warning('No measurements to plot')
+            return
+
+        df = pd.DataFrame(self._measurements)
+        
+        if window_s:
+            # Filter out measurements older than `window_s` seconds
+            df = df[df['timestamp_ms'] >= df['timestamp_ms'].max() - window_s * 1000]
+
+        df['Time Since Boot'] = pd.to_datetime(df['timestamp_ms'], unit='ms')
+        fig = px.line(df, x='Time Since Boot', y='distance_mm', title='Distance vs. Time', line_shape='hv', markers=True)
+        fig.update_layout(
+            xaxis_tickformat='%M:%S.%f',
+            yaxis_title='Distance (mm)',
+        )
+        fig.show()
+    
     
 class BadClient(Client):
-    def request_measurement(self) -> Measurement:
+    def request_measurement(self, rate_hz: float | None = None) -> Measurement:
         """Request 20 measurements in a tight loop and average them
         
         This ignores any restrictions on how fast we can poll the sensor
         """
         measurements: list[Measurement] = []
         start = time.time()
-        for _ in range(20):
+        for i in range(20):
             measurements.append(super().request_measurement())
+            if rate_hz:
+                time.sleep((1 / rate_hz) * (i + 1) - (time.time() - start))
         end = time.time()
 
         logging.info(f'Received 20 measurements at {20 / (end - start):.2f} Hz')
@@ -185,6 +216,9 @@ if __name__ == '__main__':
     formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
     handler.setFormatter(formatter)
     logger.addHandler(handler)
+
+    # Make plotly use the browser for rendering
+    pio.renderers.default = 'browser'
 
     node = Esp32Serial()
 
