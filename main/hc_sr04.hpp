@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cinttypes>
+#include <utility>
 
 #include "driver/gpio.h"
 
@@ -17,6 +18,7 @@
  */
 class HcSr04 {
     static constexpr uint32_t kMaxDistanceUs = 23200;
+    static constexpr uint32_t kMaxDistanceMm = 4000;
 
   public:
     HcSr04(gpio_num_t trigger_gpio, gpio_num_t echo_gpio);

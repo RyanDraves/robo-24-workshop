@@ -24,7 +24,7 @@ Is consists of two clients that can be used to interact with the board:
 
 class Measurement(TypedDict):
     distance_mm: int
-    # timestamp_ms: int
+    timestamp_ms: int
 
 class MesaurementRequest(TypedDict):
     pretty_please: int
@@ -32,11 +32,6 @@ class MesaurementRequest(TypedDict):
 class IPythonHandler(logging.Handler):
     def emit(self, record):
         print(self.format(record).strip())
-
-
-def _is_jsonlike(data: bytes, stop_bytes: bytes) -> bool:
-    return data.startswith(b'{') and data.endswith(b'}' + stop_bytes)
-
 
 class Esp32Serial:
     ESP32S3_VENDOR_PRODUCT_ID = '303a:1001'
@@ -100,14 +95,18 @@ class Esp32Serial:
         while self._started:
             try:
                 msg = self._receive()
-                if not _is_jsonlike(msg, self._stop_byte):
-                    logging.info(msg.decode())
-                else:
-                    self._msg_queue.put(msg)
+                idx = msg.find(b'{')
+                log_msg = msg[:idx]
+                resp = msg[idx:] if idx != -1 else None
+                if log_msg:
+                    logging.info(log_msg.decode())
+                if resp:
+                    self._msg_queue.put(resp)
             except serial.SerialException:
                 logging.error('Serial error occurred')
                 break
-            except UnicodeDecodeError:
+            except:
+                # Catch-all ignore the error (usually happens on an ungraceful exit)
                 continue
 
     def _receive(self) -> bytes:
@@ -136,11 +135,14 @@ class Client:
     def _receive(self) -> bytes:
         return self._serial.receive()
     
-    def request_measurement(self) -> None:
+    def request_measurement(self) -> Measurement:
+        """Request a single measurement"""
         request: MesaurementRequest = {'pretty_please': 1}
         self._send(json.dumps(request).encode())
+        return self._get_measurement()
     
-    def get_measurement(self) -> Measurement:
+    def _get_measurement(self) -> Measurement:
+        """Receive a single measurement from the serial node"""
         start = time.time()
         while time.time() - start < 1:
             msg = self._receive().strip()
@@ -160,12 +162,18 @@ class BadClient(Client):
         This ignores any restrictions on how fast we can poll the sensor
         """
         measurements: list[Measurement] = []
+        start = time.time()
         for _ in range(20):
             measurements.append(super().request_measurement())
+        end = time.time()
+
+        logging.info(f'Received 20 measurements at {20 / (end - start):.2f} Hz')
 
         # Average the measurements and return the first timestamp
         avg_distance = sum(m['distance_mm'] for m in measurements) // len(measurements)
-        return {'distance_mm': avg_distance}
+        m = measurements[0]
+        m['distance_mm'] = avg_distance
+        return m
         
     
 if __name__ == '__main__':
@@ -180,6 +188,7 @@ if __name__ == '__main__':
 
     node = Esp32Serial()
 
+    # Start a shell with `client` and `bad_client` available
     client = Client(node)
     bad_client = BadClient(node)
     with client, bad_client:

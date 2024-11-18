@@ -57,7 +57,7 @@ uint32_t HcSr04::get_distance_mm() {
     uint32_t timeout_us = esp_timer_get_time() + kMaxDistanceUs;
     while (!gpio_get_level(echo_)) {
         if (esp_timer_get_time() > timeout_us) {
-            return 0;
+            return kMaxDistanceMm;
         }
     }
 
