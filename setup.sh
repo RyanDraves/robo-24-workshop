@@ -26,6 +26,7 @@ APT_PACKAGES=(
     libssl-dev
     dfu-util
     libusb-1.0-0
+    libdbus-glib-1-dev
 )
 
 BREW_PACKAGES=(
@@ -103,7 +104,7 @@ function clone_esp_idf() {
 function install_tools() {
     cd ~/esp/esp-idf
 
-    ./install.sh esp32c3
+    ./install.sh esp32c3 --enable-pytest
 }
 
 function setup_env() {
@@ -117,6 +118,7 @@ function setup_env() {
 
     # Source the export script for later use
     . ~/esp/esp-idf/export.sh
+    which python
 }
 
 function maybe_add_to_profile() {

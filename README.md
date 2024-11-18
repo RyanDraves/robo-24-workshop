@@ -36,10 +36,10 @@ The ESP32 is directly connected to the HC SR04 sensors. The trigger pin is conne
 ```
 
 # Installation
-1. Setup the ESP IDF (v5.2.3).
+1. Setup the ESP IDF (v5.2.3). If using the web instructions, run the `./install.sh` script the args `./install.sh esp32c3 --enable-pytest`
   - Ubuntu & MacOS
-    - Run `./setup.sh`
-    - [Backup instructions if the script fails](https://docs.espressif.com/projects/esp-idf/en/stable/esp32/get-started/linux-macos-setup.html#step-1-install-prerequisites)
+    - Run `./setup.sh`. This will prompt for a `sudo` password early on, then can run in the background
+    - [Web instructions if the script fails](https://docs.espressif.com/projects/esp-idf/en/stable/esp32/get-started/linux-macos-setup.html#step-1-install-prerequisites)
   - Windows
     - [Instructions](https://docs.espressif.com/projects/esp-idf/en/stable/esp32/get-started/windows-setup.html)
     - Stop at "Start a Project" (that is this repo)
@@ -56,5 +56,6 @@ pip install plotly==5.24.1
 - Build: `idf.py build`
 - Build & flash: `idf.py flash`
 - Shell: `python shell.py`
+- Test: `pytest pytest_dut.py`
 
 The shell will display documentation on how to use it.

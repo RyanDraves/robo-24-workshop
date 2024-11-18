@@ -17,7 +17,6 @@
 #include "driver/uart.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
-#include "tusb_console.h"
 
 #include "hc_sr04.hpp"
 #include "json.hpp"
@@ -55,7 +54,7 @@ void handle_measurement_request(HcSr04& sensor, Measurement *meas) {
 
 void app_main(void) {
     // Initialize some "globals"
-    HcSr04 sensor((gpio_num_t)1 /* trigger */, (gpio_num_t)2  /* echo */);
+    HcSr04 sensor((gpio_num_t)2 /* trigger */, (gpio_num_t)3  /* echo */);
 
     bool received_request = false;
     uint8_t *buf = (uint8_t *)malloc(BUF_SIZE);
