@@ -1,5 +1,4 @@
 # About
-
 This is a small hands-on project for the Robo 24 Workshop. 
 
 # Wiring
