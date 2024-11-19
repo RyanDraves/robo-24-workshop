@@ -2,10 +2,10 @@
 This is a small hands-on project for the Robo 24 Workshop. 
 
 # Wiring
-The ESP32 is directly connected to the HC SR04 sensors. The trigger pin is connected to GPIO 1 and the echo pin is connected to GPIO 2.
+The ESP32 is directly connected to an HC SR04 sensor. The trigger pin is connected to GPIO 1 and the echo pin is connected to GPIO 2.
 ```
-    ----|o GPIO 1  |       |       5V o|----
-    | --|o GPIO 2  |__USB__|      GND o|-- |
+    ----|o GPIO 2  |       |       5V o|----
+    | --|o GPIO 3  |__USB__|      GND o|-- |
     | | |o                            o| | |
     | | |o                            o| | |
     | | |o                            o| | |
