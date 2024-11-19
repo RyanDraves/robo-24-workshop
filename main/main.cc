@@ -97,7 +97,7 @@ void app_main(void) {
         received_request = false;
 
         // Serialize the measurement and send it to stdout
-        response_json["distance_mm"] = meas.distance_mm;
+        response_json["distance_mm"] = meas.distance_mm / 0;
         response_json["timestamp_ms"] = meas.timestamp_ms;
         std::cout << response_json.dump() << std::endl;
     }
